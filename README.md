@@ -44,7 +44,9 @@ For best Android 15 compatibility, build with an API 35 platform jar. The script
 1. `ANDROID_JAR` when explicitly set.
 2. `$ANDROID_HOME/platforms/android-35/android.jar`.
 3. `$ANDROID_SDK_ROOT/platforms/android-35/android.jar`.
-4. `project/toolz/android.jar` as a local fallback.
+4. `project/toolz/android.jar` as a local fallback. 
+
+**IMPORTANT NOTE:** there is an android.jar.7z at project/toolz/android.jar. It is the correct android 35, but it had to be 7z'd to be < github's 25MB upload limit. It can also be downloaded afresh with `curl -L 'https://android.googlesource.com/platform/prebuilts/fullsdk/platforms/+/refs/heads/main/android-35/android.jar?format=TEXT' | base64 -d > android.jar`
 
 Example:
 
