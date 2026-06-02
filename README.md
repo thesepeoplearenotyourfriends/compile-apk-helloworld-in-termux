@@ -14,7 +14,7 @@ This project has been refactored for current Android compatibility:
 ## Install tools in Termux
 
 ```sh
-pkg install aapt2 d8 zip openjdk-17 apksigner zipalign
+pkg install aapt2 d8 zip openjdk-21 apksigner zipalign
 ```
 
 Package names can vary by Termux repository vintage. The script will also use compatible tools placed in `project/toolz/`.
