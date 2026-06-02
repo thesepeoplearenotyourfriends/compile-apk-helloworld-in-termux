@@ -18,7 +18,7 @@
 # and set up progdir to be the fully-qualified pathname of its directory.
 prog="$0"
 while [ -h "${prog}" ]; do
-    newProg=`/bin/ls -ld "${prog}"`
+    newProg=`ls -ld "${prog}"`
     newProg=`expr "${newProg}" : ".* -> \(.*\)$"`
     if expr "x${newProg}" : 'x/' >/dev/null; then
         prog="${newProg}"

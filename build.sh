@@ -1,150 +1,201 @@
-#!/bin/bash 
-# <---IMPORTANT NOTE! if you dont have
-# termux-exec package installed, that line needs to be:
-# #!$PREFIX/bin/bash
+#!/usr/bin/env bash
+# Build a tiny Android APK from the command line (Termux-friendly, no Gradle).
+#
+# Defaults are intentionally modern:
+#   * targetSdkVersion 35 (Android 15)
+#   * minSdkVersion 24 so APK Signature Scheme v2+ can cover every supported device
+#   * release-style signing with v2/v3 enabled and v4 attempted when supported
+#
+# Override knobs:
+#   ANDROID_JAR=/path/to/android.jar   Prefer an Android 15/API 35 platform jar.
+#   JAVA_HOME=/path/to/jdk             JDK 17+ is recommended.
+#   KEYSTORE_PASSWORD=...              Defaults to the demo password: password
+#   KEY_ALIAS=...                      Defaults to mykey.
+#   ENABLE_V4_SIGNING=false            Skip .idsig generation for older apksigner.
 
-# This guy simply prevents the chain of events from
-# continuing idiotically, if one step fails. The script
-# will stop there.
-function catch_error() {
-  local error_code="$?"
-  echo "Error: $error_code"
+set -Eeuo pipefail
+
+log() {
+  printf '\n--------------- %s ---------------\n' "$1"
 }
-trap catch_error ERR
-set -e
 
-# You may need to change this if you found the need
-# to locate your project files outside the hierarchy
-# of the termux 'home' dir
-dir=$PWD/$*
-echo "Work Dir: $dir"
+fail() {
+  printf 'Error: %s\n' "$*" >&2
+  exit 1
+}
 
-if [ ! -d "$dir" ]; then
-  echo "Directory does not exist"; exit 1;
+resolve_project_dir() {
+  local input="${1:-project}"
+  if [[ "$input" = /* ]]; then
+    printf '%s\n' "$input"
+  else
+    printf '%s/%s\n' "$PWD" "$input"
+  fi
+}
+
+find_tool() {
+  local name="$1"
+  if [[ -x "$BUILD_TOOLS/$name" ]]; then
+    printf '%s/%s\n' "$BUILD_TOOLS" "$name"
+  elif command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
+  else
+    return 1
+  fi
+}
+
+find_android_jar() {
+  if [[ -n "${ANDROID_JAR:-}" ]]; then
+    [[ -f "$ANDROID_JAR" ]] || fail "ANDROID_JAR is set but does not exist: $ANDROID_JAR"
+    printf '%s\n' "$ANDROID_JAR"
+    return
+  fi
+
+  local candidate
+  for candidate in \
+    "${ANDROID_HOME:-}/platforms/android-35/android.jar" \
+    "${ANDROID_SDK_ROOT:-}/platforms/android-35/android.jar" \
+    "$PROJECT_DIR/toolz/android.jar"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+
+  fail "No android.jar found. Install Android API 35, set ANDROID_JAR, or place android.jar in project/toolz/."
+}
+
+PROJECT_DIR="$(resolve_project_dir "${1:-project}")"
+printf 'Work Dir: %s\n' "$PROJECT_DIR"
+[[ -d "$PROJECT_DIR" ]] || fail "Directory does not exist: $PROJECT_DIR"
+cd "$PROJECT_DIR"
+
+BUILD_TOOLS="$PROJECT_DIR/toolz"
+if [[ -d "$BUILD_TOOLS" ]]; then
+  for bundled_tool in aapt2 apksigner d8 dx zipalign; do
+    [[ -f "$BUILD_TOOLS/$bundled_tool" ]] && chmod a+x "$BUILD_TOOLS/$bundled_tool"
+  done
+fi
+
+if [[ -z "${JAVA_HOME:-}" && -n "${PREFIX:-}" && -x "$PREFIX/opt/openjdk/bin/javac" ]]; then
+  export JAVA_HOME="$PREFIX/opt/openjdk"
+fi
+
+JAVAC="${JAVA_HOME:+$JAVA_HOME/bin/}javac"
+command -v "$JAVAC" >/dev/null 2>&1 || fail "javac not found. Install OpenJDK 17+ or set JAVA_HOME."
+
+AAPT2="$(find_tool aapt2)" || fail "aapt2 not found. Install Android build-tools (for Termux: pkg install aapt2)."
+ZIPALIGN="$(find_tool zipalign)" || fail "zipalign not found. Install Android build-tools or place it in project/toolz/."
+APKSIGNER="$(find_tool apksigner)" || fail "apksigner not found. Install Android build-tools or place it in project/toolz/."
+ANDROID_PLATFORM_JAR="$(find_android_jar)"
+D8="$(find_tool d8 || true)"
+DX="$(find_tool dx || true)"
+[[ -n "$D8" || -n "$DX" ]] || fail "Neither d8 nor dx was found. Install d8 (preferred) or dx."
+
+KEYSTORE="$PROJECT_DIR/key.keystore"
+KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD:-password}"
+KEY_ALIAS="${KEY_ALIAS:-mykey}"
+ENABLE_V4_SIGNING="${ENABLE_V4_SIGNING:-true}"
+if "$APKSIGNER" sign --help 2>&1 | grep -q -- "--v4-signing-enabled"; then
+  APKSIGNER_SUPPORTS_V4=true
 else
-  echo "Directory exists, continuing..."; fi
+  APKSIGNER_SUPPORTS_V4=false
+fi
 
-cd $dir
-
-#its likely these arent executable at first download
-chmod a+x toolz/*
-
-export JAVA_HOME="$PREFIX/opt/openjdk"
-export PATH="$PATH:$JAVA_HOME/bin"
-export BUILD_TOOLS="$dir/toolz"
-export PATH="$BUILD_TOOLS:$PATH"
-
-# Clean up junk from last build:
 rm -rf build
-mkdir build
-mkdir build/classes
+mkdir -p build/classes build/dex
 
-# Begin compilation!
-
-echo "---------------aapt2: "
-aapt2 compile -v\
+log "aapt2 compile"
+"$AAPT2" compile -v \
   --dir res \
   -o build/resources.zip
 
-# -I gives the path to the android platform’s android.jar,
-# --manifest specifies the android manifest,
-# --java specifies the path to generate the R.java file.
-# --o specifies the output path.
-
-aapt2 link -v \
-  -I $dir/toolz/android.jar \
+log "aapt2 link"
+"$AAPT2" link -v \
+  -I "$ANDROID_PLATFORM_JAR" \
   --manifest AndroidManifest.xml \
   --java build/ \
   -o build/link.apk \
-   build/resources.zip \
-   --auto-add-overlay
+  build/resources.zip \
+  --auto-add-overlay
 
-# This will compile our code to java bytecode
-# and place the .class files in build/classes
-# directory. Take note of the R.java file which
-# is the one that was generated in the previous step.
-# Without --release=9 nothing will work and
-# puppies will die
+log "javac ($("$JAVAC" --version 2>&1))"
+"$JAVAC" --release 8 \
+  -d build/classes \
+  --class-path "$ANDROID_PLATFORM_JAR" \
+  src/com/helloworld/MainActivity.java \
+  build/com/helloworld/R.java
 
-echo "---------------- Using `$JAVA_HOME/bin/javac --version` ---------------"
-$JAVA_HOME/bin/javac --release=9 -verbose \
- -d build/classes \
- --class-path \
-    $dir/toolz/android.jar \
- src/com/helloworld/MainActivity.java \
- build/com/helloworld/R.java
+log "dex"
+if [[ -n "$D8" ]]; then
+  "$D8" \
+    --min-api 24 \
+    --classpath "$ANDROID_PLATFORM_JAR" \
+    --output build/dex \
+    build/classes/com/helloworld/*.class
+  cp build/dex/classes.dex build/classes.dex
+else
+  (
+    cd build/classes
+    "$DX" --dex --verbose --output=../classes.dex com/helloworld/*.class
+  )
+fi
 
-# Once we have java bytecode we now convert it to
-# DEX bytecode that runs on android devices.
-# This is done using android’s d8 commandline tool.
+log "zip"
+(
+  cd build
+  zip -q -u link.apk classes.dex
+)
 
-# d8 uses '/bin/ls' which is not where it is, in termux.
-# this..i found out you could get termux-ready versions of
-# both these tools so these arent being used anymore.
-#sed -i 's/\/bin\/ls/ls/g' $BUILD_TOOLS/dx
-#sed -i 's/\/bin\/ls/ls/g' $BUILD_TOOLS/d8
+log "zipalign"
+"$ZIPALIGN" -v -f -p 4 build/link.apk build/aligned.apk
 
-# IF you dont include that 'cd' below, the fails will be monumental.
-# it took me 60% of the time i spent on this to figure out
-# that this tool WILL NOT FUNCTION unless the directory structure
-# matches the package name, ie com/helloworld com.helloworld.
-# if it even catches a glimpse that its actually src/com/helloworld
-# itll uncompromisingly refuse to communicate or function
+if [[ ! -f "$KEYSTORE" ]]; then
+  log "keytool"
+  keytool -genkeypair \
+    -keystore "$KEYSTORE" \
+    -storepass "$KEYSTORE_PASSWORD" \
+    -keypass "$KEYSTORE_PASSWORD" \
+    -alias "$KEY_ALIAS" \
+    -keyalg RSA \
+    -keysize 4096 \
+    -sigalg SHA256withRSA \
+    -validity 10000 \
+    -dname "CN=Termux Demo, OU=Development, O=Example, L=Local, ST=Local, C=US"
+fi
 
-# To convert into dex :
-echo "---------------d8: "
-cd $dir/build/classes
-dx --dex --verbose --debug\
-                 --output=classes.dex \
-                com/helloworld/*.class \
+sign_args=(
+  sign
+  --verbose
+  --min-sdk-version 24
+  --v1-signing-enabled false
+  --v2-signing-enabled true
+  --v3-signing-enabled true
+  --ks "$KEYSTORE"
+  --ks-pass "pass:$KEYSTORE_PASSWORD"
+  --ks-key-alias "$KEY_ALIAS"
+  --out build/final.apk
+)
 
-# This is the same step as above (you only need 
-# but one of them) but uses d8 instead of dx.
-# I chose dx only because its debug output is better
-# (d8 is completely silent and impossible to troubleshoot,
-# however in the end I got them both to work.)
-#$BUILD_TOOLS/d8 --classpath $ANDROID_HOME/platforms/$TARGET_PLATFORM/android.jar \
-#       --output build/dex/ \
-#       $(ls -1 build/classes/com/helloworld |\
-#        xargs -I{} printf "%s "\
-#        "build/classes/com/helloworld/{}")
+log "apksigner"
+if [[ "$ENABLE_V4_SIGNING" == "true" && "$APKSIGNER_SUPPORTS_V4" == "true" ]]; then
+  if "$APKSIGNER" "${sign_args[@]}" --v4-signing-enabled true build/aligned.apk; then
+    :
+  else
+    printf 'apksigner could not create v4 signing; retrying with v2/v3 only.\n' >&2
+    "$APKSIGNER" "${sign_args[@]}" --v4-signing-enabled false build/aligned.apk
+  fi
+elif [[ "$APKSIGNER_SUPPORTS_V4" == "true" ]]; then
+  "$APKSIGNER" "${sign_args[@]}" --v4-signing-enabled false build/aligned.apk
+else
+  printf 'apksigner does not support v4 signing; using v2/v3 only.\n' >&2
+  "$APKSIGNER" "${sign_args[@]}" build/aligned.apk
+fi
 
+log "verify"
+"$APKSIGNER" verify --verbose --min-sdk-version 24 build/final.apk
 
-# The output will be a file called classes.dex.
-# We then need to add this file into our link.apk
-# that was generated in the linking stage:
-# (notice that zip comes from your system and isn't
-# in android sdk):
-
-echo "---------------zip: "
-zip -v -u ../link.apk classes.dex
-
-
-# Next we need to zip align our apk using the
-# zipalign tool and then sign the apk using the
-# apksigner tool.
-
-echo "---------------zipalign: "
-$BUILD_TOOLS/zipalign -v -f -p 4 ../link.apk ../zipout.apk
-
-# (To sign the application you will need to have a
-# public-private key pair. You can generate one
-# using java’s keytool. This you only do once, so
-# if its your first time thru, uncomment the 'keytool'
-# line and answer the questions:
-# I used 'password' when asked for one
-#keytool -genkeypair -keystore key.keystore -keyalg RSA
-
-
-# And sign! --ks-pass pass:<YOUR PASS HERE> if you change it.
-echo "---------------apksigner: "
-$BUILD_TOOLS/apksigner sign \
-  --verbose \
-  --ks $dir/key.keystore \
-  --ks-pass pass:password \
-  --out ../final.apk ../zipout.apk
-
-# The output of this command is an apk final.apk.
-echo
-echo
-echo "...if success, result is $dir/build/final.apk"
+printf '\nSuccess: %s\n' "$PROJECT_DIR/build/final.apk"
+if [[ -f build/final.apk.idsig ]]; then
+  printf 'V4 idsig: %s\n' "$PROJECT_DIR/build/final.apk.idsig"
+fi
