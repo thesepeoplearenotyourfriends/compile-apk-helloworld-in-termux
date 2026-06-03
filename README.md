@@ -46,7 +46,7 @@ For best Android 15 compatibility, build with an API 34 platform jar. The script
 3. `$ANDROID_SDK_ROOT/platforms/android-34/android.jar`.
 4. `project/toolz/android.jar` as a local fallback. 
 
-**IMPORTANT NOTE:** there is an android.jar.7z at project/toolz/android.jar. It had to be split to be < github's 25MB upload limit. The script joins the pieces back automagically. It can also be downloaded afresh by extracting from `curl -L 'https://android.googlesource.com/platform/prebuilts/fullsdk/platforms/+archive/refs/heads/androidx-javascriptengine-release/android-34.tar.gz` (60MB download due to other cruft)
+**IMPORTANT NOTE:** the android 34 jar at project/toolz/android.jar.part.00/01. It had to be split to be < github's 25MB upload limit. The script joins the pieces back automagically. It can also be downloaded afresh by extracting from `curl -L 'https://android.googlesource.com/platform/prebuilts/fullsdk/platforms/+archive/refs/heads/androidx-javascriptengine-release/android-34.tar.gz` (60MB download due to other cruft).
 
 Simple as:
 
