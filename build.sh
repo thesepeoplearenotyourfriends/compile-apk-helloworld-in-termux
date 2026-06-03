@@ -14,7 +14,7 @@
 #   ENABLE_V4_SIGNING=false            Skip .idsig generation for older apksigner.
 
 export JAVA_HOME="/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/"
-export ANDROID_JAR="/data/data/com.termux/files/home/compile-apk/compile-apk-helloworld-in-termux-main/project/toolz/android.jar"
+export ANDROID_JAR="/data/data/com.termux/files/home/compile-apk-helloworld-in-termux-main/project/toolz/android.jar"
 export PATH="$PATH:$JAVA_HOME/bin"
 
 set -Eeuo pipefail
@@ -48,6 +48,23 @@ find_tool() {
   fi
 }
 
+join_android_jar_parts() {
+  local jar="$PROJECT_DIR/toolz/android.jar"
+  local part0="$PROJECT_DIR/toolz/android.jar.part.00"
+  local part1="$PROJECT_DIR/toolz/android.jar.part.01"
+
+  if [[ -f "$jar" ]]; then
+    return
+  fi
+
+  [[ -f "$part0" ]] || fail "android.jar is missing and part file is missing: $part0"
+  [[ -f "$part1" ]] || fail "android.jar is missing and part file is missing: $part1"
+
+  log "android.jar"
+  cat "$part0" "$part1" > "$jar" || fail "failed to join android.jar parts"
+  [[ -s "$jar" ]] || fail "joined android.jar is empty: $jar"
+}
+
 find_android_jar() {
   if [[ -n "${ANDROID_JAR:-}" ]]; then
     [[ -f "$ANDROID_JAR" ]] || fail "ANDROID_JAR is set but does not exist: $ANDROID_JAR"
@@ -73,6 +90,9 @@ PROJECT_DIR="$(resolve_project_dir "${1:-project}")"
 printf 'Work Dir: %s\n' "$PROJECT_DIR"
 [[ -d "$PROJECT_DIR" ]] || fail "Directory does not exist: $PROJECT_DIR"
 cd "$PROJECT_DIR"
+
+join_android_jar_parts
+export ANDROID_JAR="$PROJECT_DIR/toolz/android.jar"
 
 BUILD_TOOLS="$PROJECT_DIR/toolz"
 if [[ -d "$BUILD_TOOLS" ]]; then
