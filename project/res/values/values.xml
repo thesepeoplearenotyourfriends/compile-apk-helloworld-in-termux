@@ -1,9 +1,0 @@
-<resources>
-    <string name="app_name">HelloWorld</string>
-    <string name="hello_world">Hello world!</string>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:colorAccent">#3F51B5</item>
-    </style>
-</resources>
