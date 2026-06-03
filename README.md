@@ -91,4 +91,5 @@ project/res/layout/activity_main.xml  WebView layout.
 project/res/values/values.xml         Strings and theme.
 project/src/com/helloworld/           Java source.
 project/toolz/                        Optional local build-tool fallbacks.
+project/assets/index.html             Where "hello world" lives (the page the browser will serve).
 ```
