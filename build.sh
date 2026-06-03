@@ -2,7 +2,7 @@
 # Build a tiny Android APK from the command line (Termux-friendly, no Gradle).
 #
 # Defaults are intentionally modern:
-#   * targetSdkVersion 35 (Android 15)
+#   * targetSdkVersion 34 (Android 15)
 #   * minSdkVersion 24 so APK Signature Scheme v2+ can cover every supported device
 #   * release-style signing with v2/v3 enabled and v4 attempted when supported
 #
@@ -14,6 +14,8 @@
 #   ENABLE_V4_SIGNING=false            Skip .idsig generation for older apksigner.
 
 export JAVA_HOME="/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/"
+export ANDROID_JAR="/data/data/com.termux/files/home/compile-apk/compile-apk-helloworld-in-termux-main/project/toolz/android.jar"
+export PATH="$PATH:$JAVA_HOME/bin"
 
 set -Eeuo pipefail
 
@@ -117,6 +119,7 @@ log "aapt2 link"
   -I "$ANDROID_PLATFORM_JAR" \
   --manifest AndroidManifest.xml \
   --java build/ \
+  -A assets \
   -o build/link.apk \
   build/resources.zip \
   --auto-add-overlay
