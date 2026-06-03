@@ -4,7 +4,7 @@ Build a tiny Android APK from a shell in Termux without Gradle, Maven, or an IDE
 
 This project has been refactored for current Android compatibility:
 
-- Targets **Android 15 / API 35** (`targetSdkVersion="35"`).
+- Targets **Android 15 / API 34** (`targetSdkVersion="34"`).
 - Uses **API 24+** as the supported install floor so the APK can rely on modern whole-file APK signing.
 - Declares `android:exported="true"` on the launcher activity, which is required for apps targeting Android 12+ when an activity has an intent filter.
 - Builds with `d8` when available, falling back to `dx` only for older Termux setups.
@@ -39,26 +39,26 @@ project/build/final.apk.idsig
 
 ## Android platform jar
 
-For best Android 15 compatibility, build with an API 35 platform jar. The script searches in this order:
+For best Android 15 compatibility, build with an API 34 platform jar. The script searches in this order:
 
 1. `ANDROID_JAR` when explicitly set.
-2. `$ANDROID_HOME/platforms/android-35/android.jar`.
-3. `$ANDROID_SDK_ROOT/platforms/android-35/android.jar`.
+2. `$ANDROID_HOME/platforms/android-34/android.jar`.
+3. `$ANDROID_SDK_ROOT/platforms/android-34/android.jar`.
 4. `project/toolz/android.jar` as a local fallback. 
 
-**IMPORTANT NOTE:** there is an android.jar.7z at project/toolz/android.jar. It is the correct android 35, but it had to be 7z'd to be < github's 25MB upload limit. It can also be downloaded afresh with `curl -L 'https://android.googlesource.com/platform/prebuilts/fullsdk/platforms/+/refs/heads/main/android-35/android.jar?format=TEXT' | base64 -d > android.jar`
+**IMPORTANT NOTE:** there is an android.jar.7z at project/toolz/android.jar. It had to be split to be < github's 25MB upload limit. The script joins the pieces back automagically. It can also be downloaded afresh by extracting from `curl -L 'https://android.googlesource.com/platform/prebuilts/fullsdk/platforms/+archive/refs/heads/androidx-javascriptengine-release/android-34.tar.gz` (60MB download due to other cruft)
 
-Example:
+Simple as:
 
 ```sh
-ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar" ./build.sh project
+./build.sh project
 ```
 
 ## Signing
 
-The repository includes a demo keystore so the sample can build immediately. Do **not** use that keystore for a real app.
+The repository includes a demo keystore so the sample can build immediately. Obviously dont expect the Play Store to accept that, but perfectly fine for sideloading your own stuff to your own device.
 
-For a real app, create your own keystore and pass credentials through the environment:
+For a 'real' app (ie you want Google's approval), create your own keystore and pass credentials through the environment:
 
 ```sh
 keytool -genkeypair \
