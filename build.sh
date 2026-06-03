@@ -13,6 +13,8 @@
 #   KEY_ALIAS=...                      Defaults to mykey.
 #   ENABLE_V4_SIGNING=false            Skip .idsig generation for older apksigner.
 
+export JAVA_HOME="/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/"
+
 set -Eeuo pipefail
 
 log() {
