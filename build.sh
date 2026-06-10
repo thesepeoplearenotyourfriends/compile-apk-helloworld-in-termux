@@ -13,9 +13,11 @@
 #   KEY_ALIAS=...                      Defaults to mykey.
 #   ENABLE_V4_SIGNING=false            Skip .idsig generation for older apksigner.
 
-export JAVA_HOME="/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/"
-export ANDROID_JAR="/data/data/com.termux/files/home/compile-apk-helloworld-in-termux-main/project/toolz/android.jar"
-export PATH="$PATH:$JAVA_HOME/bin"
+#NOTE: you may want these exact paths. they are specific to my setup so i left them commented.
+#If you cannot find correct paths otherwise, these may help.
+#export JAVA_HOME="/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/"
+#export ANDROID_JAR="/data/data/com.termux/files/home/compile-apk-helloworld-in-termux-main/project/toolz/android.jar"
+#export PATH="$PATH:$JAVA_HOME/bin"
 
 set -Eeuo pipefail
 
